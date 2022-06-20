@@ -68,10 +68,30 @@
         </button>
       </section>
       <template v-if="tickers.length">
+        <hr class="w-full border-t border-gray-600 my-4" />
+        <p>
+          <button
+              v-if="page > 1"
+              type="button"
+              @click="toPrevPage()"
+              class="my-4 mx-2 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+          >Назад
+          </button>
+          <button
+              v-if="hasNextPage"
+              type="button"
+              @click="toNextPage()"
+              class="my-4 mx-2 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+          >Вперед
+          </button>
+          <span>Фильтр: <input v-model="filter"/></span>
+        </p>
       <hr class="w-full border-t border-gray-600 my-4" />
+
       <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
+
         <div
-            v-for="tcr in tickers"
+            v-for="tcr in paginatedTickers"
             :key="tcr.name"
             @click="selectTicker(tcr)"
             :class="{
@@ -114,7 +134,7 @@
         </h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
           <div
-              v-for="(bar, idx) in normalizeGraph()"
+              v-for="(bar, idx) in normalizedGraph"
               :key="idx"
               :style="{height:`${bar}%`}"
               class="bg-purple-800 border w-10 h-24"
@@ -155,7 +175,6 @@
 
 <script>
 
-
 export default {
   name: 'App',
   data() {
@@ -169,7 +188,47 @@ export default {
       allTickerNames: [],
       tickerButtons: [],
       tickerJustExists: false,
+      page: 1,
+      filter: '',
+      // hasNextPage: false,
     }
+  },
+  computed: {
+    startIndex() {
+      return (this.page - 1) * 6;
+    },
+    endIndex() {
+      return this.page * 6 - 1;
+    },
+    filteredTickers() {
+      if (!this.filter) {
+        return this.tickers;
+      }
+      return  this.tickers.filter(tcr => tcr.name.toLowerCase().includes(this.filter.toLowerCase()));
+    },
+    hasNextPage() {
+      return this.filteredTickers.length > this.endIndex;
+    },
+    paginatedTickers() {
+      return this.filteredTickers.slice(this.startIndex, this.endIndex + 1);
+    },
+    normalizedGraph() {
+      if (!this.graph.length) {
+        return this.graph;
+      }
+      const minHeight = Math.min(...this.graph);
+      const maxHeight = Math.max(...this.graph);
+      if (minHeight === maxHeight) {
+        this.graph.map(() => 50);
+      }
+      return this.graph.map(price => 5 + (price - minHeight)/(maxHeight - minHeight)*95);
+    },
+    pageStateOptions() {
+      return {
+        page: this.page,
+        filter: this.filter
+      }
+    },
   },
   methods: {
     subscribeToUpdates(tickerName) {
@@ -181,7 +240,9 @@ export default {
             const theTicker = this.tickers
                 .find(tcr => tcr.name === tickerName);
             if (theTicker) {
-              theTicker.price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+              if (data.USD) {
+                theTicker.price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+              }
             }
             if (tickerName === this.selectedTicker?.name) {
               this.graph.push(data.USD);
@@ -196,32 +257,26 @@ export default {
       const currentTicker = {};
       currentTicker.name = this.ticker;
       currentTicker.price = '-';
-      this.tickers.push(currentTicker);
-      localStorage.setItem('cryptonomicon-list', JSON.stringify(this.tickers));
+      this.tickers = [...this.tickers, currentTicker];
+
       this.subscribeToUpdates(currentTicker.name);
       this.ticker = '';
+      this.filter = '';
     },
     deleteTicker(tickerToDelete) {
       this.tickers = this.tickers.filter(t => t !== tickerToDelete);
-      localStorage.setItem('cryptonomicon-list', JSON.stringify(this.tickers));
       if (this.selectedTicker === tickerToDelete) {
         this.selectTicker(null);
       }
     },
+    toPrevPage() {
+      this.page -= 1;
+    },
+    toNextPage() {
+      this.page += 1;
+    },
     selectTicker(tickerToSelect) {
       this.selectedTicker = tickerToSelect;
-      this.graph = [];
-    },
-    normalizeGraph() {
-      if (!this.graph.length) {
-        return this.graph;
-      }
-      let minHeight = Math.min(...this.graph);
-      const maxHeight = Math.max(...this.graph);
-      if (minHeight === maxHeight) {
-        minHeight /= 2;
-      }
-      return this.graph.map(price => 5 + (price - minHeight)/(maxHeight - minHeight)*95);
     },
     tickerButtonClicked(tickerButtonName) {
       this.ticker = tickerButtonName;
@@ -241,13 +296,43 @@ export default {
       this.tickerButtons = this.allTickerNames.filter(tN => tN.toLowerCase().startsWith(newTicker.toLowerCase())).slice(0, 4);
       this.validateTicker(newTicker);
     },
+    selectedTicker: function() {
+      this.graph = [];
+    },
+    tickers: function () {
+      localStorage.setItem('cryptonomicon-list', JSON.stringify(this.tickers));
+    },
+    pageStateOptions: function (value) {
+      window.history.pushState(
+          null,
+          document.title,
+          `${window.location.pathname}?filter=${value.filter}&page=${value.page}`
+      );
+    },
+    filter: function() {
+      this.page = 1;
+    },
+    paginatedTickers: function () {
+      if ((this.paginatedTickers.length == 0) && (this.page > 1)) {
+        this.page -= 1;
+      }
+    }
   },
   async created() {
+    const windowData = Object.fromEntries(new URL(window.location).searchParams.entries());
+
+    if (windowData.page) {
+      this.page = windowData.page;
+    }
+    if (windowData.filter) {
+      this.filter = windowData.filter;
+    }
     const storedTickers = localStorage.getItem('cryptonomicon-list');
     if (storedTickers) {
       this.tickers = JSON.parse(storedTickers);
       this.tickers.forEach(currentTicker => this.subscribeToUpdates(currentTicker.name));
     }
+
   },
   async mounted() {
         const t = await fetch(
