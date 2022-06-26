@@ -33,15 +33,6 @@
               >
                 {{tickerButton}}
               </span>
-<!--                <span class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer">-->
-<!--                DOGE-->
-<!--              </span>-->
-<!--                <span class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer">-->
-<!--                BCH-->
-<!--              </span>-->
-<!--                <span class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer">-->
-<!--                CHD-->
-<!--              </span>-->
             </div>
             <div v-if="tickerJustExists" class="text-sm text-red-600">Такой тикер уже добавлен</div>
           </div>
@@ -234,6 +225,9 @@ export default {
   methods: {
     updateTicker(tickerName, price) {
       this.tickers.filter(tcr => tcr.name === tickerName).forEach(tcr => tcr.price = price);
+      if (this.selectedTicker.name === tickerName) {
+        this.graph.push(price);
+      }
     },
     formatPrice(price) {
       if (price === '-') {
@@ -264,7 +258,9 @@ export default {
       this.tickers = [...this.tickers, currentTicker];
 
       // this.updateTickers(currentTicker.name);
-      subscribeToTicker(currentTicker.name, (newPrice) => this.updateTicker(currentTicker.name, newPrice));
+      subscribeToTicker(currentTicker.name, (newPrice) => {
+        this.updateTicker(currentTicker.name, newPrice);
+      });
       this.ticker = '';
       this.filter = '';
     },
@@ -337,7 +333,8 @@ export default {
     if (storedTickers) {
       this.tickers = JSON.parse(storedTickers);
       // this.tickers.forEach(currentTicker => this.updateTickers(currentTicker.name));
-      this.tickers.forEach(ticker => subscribeToTicker(ticker.name.toUpperCase(), (newPrice) => this.updateTicker(ticker.name.toUpperCase(), newPrice)));
+      this.tickers.forEach(ticker => subscribeToTicker(
+          ticker.name.toUpperCase(), (newPrice) => this.updateTicker(ticker.name.toUpperCase(), newPrice)));
     }
     setInterval(this.updateTickers, 5000);
   },
